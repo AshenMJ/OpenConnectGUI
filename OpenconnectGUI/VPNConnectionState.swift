@@ -53,6 +53,7 @@ class VPNConnectionState: ObservableObject, Identifiable {
 
                 DispatchQueue.main.async {
                     self.isConnected = true
+                    NotificationManager.postConnectionSuccess(for: self.config.name)
                     self.log("[\(Date())] Połączenie rozpoczęte z \(self.config.serverAddress)")
                 }
 
@@ -79,6 +80,7 @@ class VPNConnectionState: ObservableObject, Identifiable {
                     guard let self = self else { return }
                     DispatchQueue.main.async {
                         self.isConnected = false
+                        NotificationManager.postConnectionDisconnected(for: self.config.name)
                         self.log("[\(Date())] Połączenie zakończone.")
                         self.cleanup()
                     }
