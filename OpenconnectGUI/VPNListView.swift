@@ -4,13 +4,12 @@ import SwiftUI
 /// and allows adding or removing configurations.
 struct VPNListView: View {
     @ObservedObject var store: VPNConfigurationStore
-    @State private var showingAddSheet = false
-    @State private var selectedConfig: VPNConfiguration? = nil
-    @State private var showingLogsFor: VPNConfiguration? = nil
-    @State private var editingConfig: VPNConfiguration? = nil
-    @State private var expandedConfigID: UUID?
-    @State private var connections: [UUID: VPNConnectionState] = [:]
-
+       @StateObject private var connectionStore = ConnectionStore()
+       @State private var showingAddSheet = false
+       @State private var selectedConfig: VPNConfiguration?
+       @State private var showingLogsFor: VPNConfiguration?
+       @State private var editingConfig: VPNConfiguration?
+    
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
@@ -37,98 +36,38 @@ struct VPNListView: View {
             Divider()
 
             List {
-                ForEach(store.configurations) { config in
-                    let connection = connections[config.id] ?? VPNConnectionState(config: config)
+                        ForEach(store.configurations) { config in
+                               // Pobierz instancję z ConnectionStore
+                               let connection = connectionStore.connection(for: config)
 
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.gray.opacity(0.1))
-
-                        VStack(alignment: .leading, spacing: 10) {
-                            HStack {
-                                Text(config.name)
-                                    .font(.title3)
-                                    .fontWeight(.semibold)
-
-                                Spacer()
-
-                                VPNStatusIndicator(isConnected: connection.isConnected)
-                            }
-
-                            Text(config.serverAddress)
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-
-                            HStack(spacing: 12) {
-                                Label(config.username, systemImage: "person.fill")
-                                    .font(.caption)
-                                    .foregroundColor(.gray)
-
-                                if let proto = config.protocolType {
-                                    Label(proto, systemImage: "network")
-                                        .font(.caption)
-                                        .foregroundColor(.gray)
-                                }
-                            }
-
-                            HStack(spacing: 10) {
-                                Button {
-                                    selectedConfig = config
-                                } label: {
-                                    Label("Połącz", systemImage: "link")
-                                }
-                                .buttonStyle(.bordered)
-
-                                Button {
-                                    connection.disconnect()
-                                } label: {
-                                    Label("Rozłącz", systemImage: "xmark.circle")
-                                }
-                                .buttonStyle(.bordered)
-
-                                Button {
-                                    editingConfig = config
-                                } label: {
-                                    Image(systemName: "pencil")
-                                }
-                                .buttonStyle(.borderless)
-                                .help("Edytuj konfigurację")
-
-                                Button {
-                                    showingLogsFor = config
-                                } label: {
-                                    Image(systemName: "info.circle")
-                                }
-                                .buttonStyle(.borderless)
-                                .help("Pokaż logi")
-
-                                Button {
-                                    store.remove(config)
-                                } label: {
-                                    Image(systemName: "trash")
-                                }
-                                .buttonStyle(.borderless)
-                                .help("Usuń konfigurację")
-                            }
-                        }
-                        .padding()
-                    }
-                    .padding(.vertical, 4)
-                    .onAppear {
-                        if connections[config.id] == nil {
-                            connections[config.id] = connection
-                        }
-                    }
-                }
-                .onDelete(perform: delete)
-            }
-            .listStyle(.plain)
+                               ConnectionRow(
+                                   config: config,
+                                   connection: connection,
+                                   onConnect: { selectedConfig = config },
+                                   onDisconnect: { connection.disconnect() },
+                                   onEdit: { editingConfig = config },
+                                   onShowLogs: { showingLogsFor = config },
+                                   onDelete: {
+                                       store.remove(config)
+                                       connectionStore.remove(config)
+                                   }
+                               )
+                           }
+                           .onDelete { offsets in
+                               let toDelete = offsets.map { store.configurations[$0] }
+                               toDelete.forEach { cfg in
+                                   store.remove(cfg)
+                                   connectionStore.remove(cfg)
+                               }
+                           }
+                       }
+                       .listStyle(.plain)
         }
         .sheet(isPresented: $showingAddSheet) {
             AddVPNView(store: store)
         }
-        .sheet(item: $selectedConfig) { config in
-            let connection = connections[config.id] ?? VPNConnectionState(config: config)
+         .sheet(item: $selectedConfig) { config in
+           let connection = connectionStore.connection(for: config)
             let savedSudoPassword = KeychainService.loadSudoPassword() ?? ""
 
             if config.rememberCredentials,
@@ -155,20 +94,22 @@ struct VPNListView: View {
                 }
             }
         }
-        .sheet(item: $showingLogsFor) { config in
-            if let logs = connections[config.id]?.logs {
-                VPNLogsView(logs: logs)
-            } else {
-                VPNLogsView(logs: ["Brak logów dla tej konfiguracji."])
-            }
-        }
+         .sheet(item: $showingLogsFor) { config in
+                    let logs = connectionStore.connection(for: config).logs
+                    VPNLogsView(logs: logs)
+                }
         .sheet(item: $editingConfig) { config in
             EditVPNView(store: store, config: config)
         }
         .frame(minWidth: 600, minHeight: 400)
     }
 
-    private func delete(at offsets: IndexSet) {
-        offsets.map { store.configurations[$0] }.forEach(store.remove)
-    }
+   
+
+      private func delete(at offsets: IndexSet) {
+        let toDelete = offsets.map { store.configurations[$0] }
+        toDelete.forEach {
+          store.remove($0)
+        }
+      }
 }

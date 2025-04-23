@@ -1,19 +1,16 @@
-//
-//  VPNStatusIndicator.swift
-//  OpenconnectGUI
-//
-//  Created by Mikołaj Jucha on 23/04/2025.
-//
 import SwiftUI
 
-/// A small colored circle indicating VPN connection status.
 struct VPNStatusIndicator: View {
-    var isConnected: Bool
+    let isConnected: Bool
 
     var body: some View {
         Circle()
             .fill(isConnected ? Color.green : Color.gray)
-            .frame(width: 10, height: 10)
-            .shadow(radius: isConnected ? 2 : 0)
+            .frame(width: 12, height: 12)
+            .overlay(
+                Circle()
+                  .stroke(Color.secondary.opacity(0.5), lineWidth: 1)
+            )
+            .help(isConnected ? "Connected" : "Disconnected")
     }
 }

@@ -18,9 +18,11 @@ class VPNLogsViewModel: ObservableObject {
             .autoconnect()
             .sink { [weak self] _ in
                 guard let self = self else { return }
-                let newLog = "Log \(Date())"
+                let raw = "Log \(Date())"
+                let line = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !line.isEmpty else { return }      // <— odrzucamy puste
                 DispatchQueue.main.async {
-                    self.logs.append(newLog)
+                    self.logs.append(line)
                     if self.logs.count > 500 {
                         self.logs.removeFirst(self.logs.count - 500)
                     }
@@ -60,7 +62,7 @@ struct VPNLogsView: View {
             // Obszar logów
             ScrollView {
                 VStack(alignment: .leading, spacing: 2) {
-                    ForEach(viewModel.logs, id: \.self) { line in
+                    ForEach(Array(viewModel.logs.suffix(200).enumerated()), id: \.offset) { _, line in
                         Text(line)
                             .font(.system(size: 12, design: .monospaced))
                             .frame(maxWidth: .infinity, alignment: .leading)
